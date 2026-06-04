@@ -24,9 +24,11 @@ fun FridgeNavHost(
         startDestination = FridgeRoute.Camera.route,
         route = FRIDGE_GRAPH_ROUTE
     ) {
-        composable(FridgeRoute.Camera.route) {
+        composable(FridgeRoute.Camera.route) { entry ->
+            val session = entry.sharedViewModel<FridgeSessionViewModel>(navController)
             CameraScreen(
-                onNavigateToIngredients = {
+                onImageCaptured = { image ->
+                    session.setCapturedImage(image)
                     navController.navigate(FridgeRoute.Ingredients.route)
                 }
             )
