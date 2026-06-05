@@ -1,17 +1,15 @@
 package com.mgpark.fridgelab.ui.recipes
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -21,7 +19,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -30,6 +27,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mgpark.fridgelab.domain.model.Ingredient
 import com.mgpark.fridgelab.domain.model.Recipe
+import com.mgpark.fridgelab.ui.components.AccentButton
+import com.mgpark.fridgelab.ui.components.EmptyState
+import com.mgpark.fridgelab.ui.components.ErrorState
+import com.mgpark.fridgelab.ui.components.LoadingState
 import com.mgpark.fridgelab.ui.theme.FridgeLabTheme
 
 @Composable
@@ -64,21 +65,10 @@ private fun RecipesContent(
         topBar = { TopAppBar(title = { Text("추천 레시피") }) }
     ) { padding ->
         if (state.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator()
-                    Text(
-                        text = "레시피를 만드는 중...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 16.dp)
-                    )
-                }
-            }
+            LoadingState(
+                message = "레시피를 만드는 중...",
+                modifier = Modifier.padding(padding)
+            )
         } else {
             Column(
                 modifier = Modifier
@@ -86,30 +76,27 @@ private fun RecipesContent(
                     .padding(padding)
                     .padding(horizontal = 20.dp)
             ) {
-                state.errorMessage?.let { message ->
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(vertical = 12.dp)
-                    )
-                }
+                when {
+                    state.recipes.isEmpty() && state.errorMessage != null ->
+                        ErrorState(
+                            message = state.errorMessage,
+                            modifier = Modifier.weight(1f)
+                        )
 
-                if (state.recipes.isEmpty() && state.errorMessage == null) {
-                    Text(
-                        text = "추천된 레시피가 없습니다.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(vertical = 12.dp)
-                    )
-                }
+                    state.recipes.isEmpty() ->
+                        EmptyState(
+                            message = "추천된 레시피가 없습니다.",
+                            modifier = Modifier.weight(1f)
+                        )
 
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp)
-                ) {
-                    items(state.recipes) { recipe ->
-                        RecipeCard(recipe = recipe)
+                    else -> LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        items(state.recipes) { recipe ->
+                            RecipeCard(recipe = recipe)
+                        }
                     }
                 }
 
@@ -125,12 +112,11 @@ private fun RecipesContent(
                     ) {
                         Text("다시 추천")
                     }
-                    Button(
+                    AccentButton(
+                        text = "다시 촬영하기",
                         onClick = onRestart,
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Text("다시 촬영하기")
-                    }
+                    )
                 }
             }
         }
@@ -139,20 +125,16 @@ private fun RecipesContent(
 
 @Composable
 private fun RecipeCard(recipe: Recipe) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = recipe.title,
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
 
-            Text(
-                text = "재료",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
-            )
+            SectionHeader("재료")
             recipe.ingredients.forEach { ingredient ->
                 Text(
                     text = "• $ingredient",
@@ -160,21 +142,32 @@ private fun RecipeCard(recipe: Recipe) {
                 )
             }
 
-            Text(
-                text = "조리 순서",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
-            )
+            SectionHeader("조리 순서")
             recipe.steps.forEachIndexed { index, step ->
-                Text(
-                    text = "${index + 1}. $step",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(bottom = 2.dp)
-                )
+                Row(modifier = Modifier.padding(bottom = 4.dp)) {
+                    Text(
+                        text = "${index + 1}.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    Text(text = step, style = MaterialTheme.typography.bodyMedium)
+                }
             }
         }
     }
+}
+
+@Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.secondary,
+        modifier = Modifier.padding(top = 14.dp, bottom = 6.dp)
+    )
 }
 
 private val SAMPLE_RECIPES = listOf(

@@ -1,25 +1,24 @@
 package com.mgpark.fridgelab.ui.ingredients
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mgpark.fridgelab.domain.model.Ingredient
+import com.mgpark.fridgelab.ui.components.AccentButton
+import com.mgpark.fridgelab.ui.components.LoadingState
 import com.mgpark.fridgelab.ui.theme.FridgeLabTheme
 
 @Composable
@@ -69,21 +70,10 @@ private fun IngredientsContent(
         topBar = { TopAppBar(title = { Text("인식된 재료") }) }
     ) { padding ->
         if (state.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator()
-                    Text(
-                        text = "사진에서 재료를 찾는 중...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 16.dp)
-                    )
-                }
-            }
+            LoadingState(
+                message = "사진에서 재료를 찾는 중...",
+                modifier = Modifier.padding(padding)
+            )
         } else {
             Column(
                 modifier = Modifier
@@ -100,57 +90,60 @@ private fun IngredientsContent(
                     )
                 }
 
-                if (state.ingredients.isEmpty()) {
-                    Text(
-                        text = "인식된 재료가 없습니다. 아래에서 직접 추가해 보세요.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(vertical = 12.dp)
-                    )
-                }
+                Text(
+                    text = if (state.ingredients.isEmpty()) {
+                        "인식된 재료가 없습니다. 아래에서 직접 추가해 보세요."
+                    } else {
+                        "재료 ${state.ingredients.size}개 · 칩의 ✕로 삭제, 아래에서 추가할 수 있어요."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
 
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(state.ingredients) { ingredient ->
-                        IngredientRow(ingredient = ingredient, onRemove = { onRemove(ingredient) })
-                        HorizontalDivider()
-                    }
-                }
+                IngredientChips(
+                    ingredients = state.ingredients,
+                    onRemove = onRemove,
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                )
 
                 AddIngredientRow(onAdd = onAdd)
 
-                Button(
+                AccentButton(
+                    text = "레시피 추천받기",
                     onClick = onConfirm,
                     enabled = state.ingredients.isNotEmpty(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 16.dp)
-                ) {
-                    Text("레시피 추천받기")
-                }
+                )
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-private fun IngredientRow(ingredient: Ingredient, onRemove: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+private fun IngredientChips(
+    ingredients: List<Ingredient>,
+    onRemove: (Ingredient) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    FlowRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            text = ingredient.name,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f)
-        )
-        ingredient.quantity?.let {
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(end = 8.dp)
+        ingredients.forEach { ingredient ->
+            val label = ingredient.quantity?.let { "${ingredient.name} $it" } ?: ingredient.name
+            InputChip(
+                selected = false,
+                onClick = { onRemove(ingredient) },
+                label = { Text(label) },
+                trailingIcon = { Text("✕", style = MaterialTheme.typography.labelLarge) }
             )
         }
-        TextButton(onClick = onRemove) { Text("삭제") }
     }
 }
 
@@ -180,7 +173,7 @@ private fun AddIngredientRow(onAdd: (Ingredient) -> Unit) {
             keyboardActions = KeyboardActions(onDone = { submit() }),
             modifier = Modifier.weight(1f)
         )
-        Button(onClick = { submit() }) { Text("추가") }
+        OutlinedButton(onClick = { submit() }) { Text("추가") }
     }
 }
 
@@ -193,7 +186,9 @@ private fun IngredientsContentPreview() {
                 ingredients = listOf(
                     Ingredient("토마토", "2개"),
                     Ingredient("계란", "5개"),
-                    Ingredient("양파")
+                    Ingredient("양파"),
+                    Ingredient("대파", "1대"),
+                    Ingredient("두부")
                 )
             ),
             onAdd = {},
