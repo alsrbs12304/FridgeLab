@@ -46,8 +46,11 @@ fun FridgeNavHost(
                 }
             )
         }
-        composable(FridgeRoute.Recipes.route) {
+        composable(FridgeRoute.Recipes.route) { entry ->
+            val session = entry.sharedViewModel<FridgeSessionViewModel>(navController)
+            val ingredients by session.ingredients.collectAsStateWithLifecycle()
             RecipesScreen(
+                ingredients = ingredients,
                 onRestart = {
                     navController.navigate(FridgeRoute.Camera.route) {
                         popUpTo(FridgeRoute.Camera.route) { inclusive = true }
