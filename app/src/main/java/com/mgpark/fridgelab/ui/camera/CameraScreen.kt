@@ -18,6 +18,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -34,6 +35,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -41,7 +43,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -417,6 +419,21 @@ private fun ScanLine() {
 @Composable
 private fun AnalyzingCard(progress: Float, found: Int, modifier: Modifier) {
     val primaryBright = FridgeTheme.colors.primaryBright
+
+    // 별 아이콘 회전 (1.6초 루프) — AI가 분석 중인 느낌
+    val spin = rememberInfiniteTransition(label = "sparkle")
+    val angle by spin.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(1600, easing = LinearEasing), RepeatMode.Restart),
+        label = "angle"
+    )
+    // 진행률을 부드럽게 보간 → 빈 바가 채워지는 느낌
+    val animated by animateFloatAsState(
+        targetValue = progress.coerceIn(0f, 1f),
+        animationSpec = tween(220, easing = LinearEasing),
+        label = "progress"
+    )
+
     Box(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
@@ -426,21 +443,29 @@ private fun AnalyzingCard(progress: Float, found: Int, modifier: Modifier) {
                 .padding(20.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Icon(FridgeIcons.sparkle, null, tint = primaryBright, modifier = Modifier.size(20.dp))
+                Icon(FridgeIcons.sparkle, null, tint = primaryBright, modifier = Modifier.size(20.dp).rotate(angle))
                 Column(Modifier.weight(1f)) {
                     Text("AI가 재료를 분석하고 있어요", color = Color.White, fontSize = 15.5.sp, fontWeight = FontWeight.Bold)
                     Text("지금까지 ${found}개 재료를 찾았어요", color = Color(0x99FFFFFF), fontSize = 12.5.sp)
                 }
             }
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
+            // 커스텀 진행 바 — 빈 트랙 위로 채움이 늘어남 (gap/stop 표시 없음)
+            Box(
+                Modifier
                     .fillMaxWidth()
                     .padding(top = 13.dp)
-                    .clip(CircleShape),
-                color = primaryBright,
-                trackColor = Color(0x24FFFFFF)
-            )
+                    .height(6.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x24FFFFFF))
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(animated)
+                        .height(6.dp)
+                        .clip(CircleShape)
+                        .background(primaryBright)
+                )
+            }
         }
     }
 }
