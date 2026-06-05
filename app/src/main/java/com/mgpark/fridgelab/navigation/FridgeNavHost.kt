@@ -1,6 +1,8 @@
 package com.mgpark.fridgelab.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -33,9 +35,13 @@ fun FridgeNavHost(
                 }
             )
         }
-        composable(FridgeRoute.Ingredients.route) {
+        composable(FridgeRoute.Ingredients.route) { entry ->
+            val session = entry.sharedViewModel<FridgeSessionViewModel>(navController)
+            val image by session.capturedImage.collectAsStateWithLifecycle()
             IngredientsScreen(
-                onNavigateToRecipes = {
+                image = image,
+                onIngredientsConfirmed = { ingredients ->
+                    session.setIngredients(ingredients)
                     navController.navigate(FridgeRoute.Recipes.route)
                 }
             )
