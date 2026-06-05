@@ -53,6 +53,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -306,20 +310,46 @@ private fun CaptureGuide() {
     val frameColor = Color(0xF2FFFFFF)
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(290.dp, 360.dp)) {
-            val s = 38.dp.toPx()
-            val w = 3.dp.toPx()
-            val rad = 18.dp.toPx()
-            // four ㄱ-brackets
-            fun corner(cx: Float, cy: Float, dx: Int, dy: Int) {
-                // horizontal segment
-                drawLine(frameColor, Offset(cx, cy), Offset(cx + dx * (s - rad), cy), w)
-                // vertical segment
-                drawLine(frameColor, Offset(cx, cy), Offset(cx, cy + dy * (s - rad)), w)
+            val arm = 38.dp.toPx()    // ㄱ자 한 변 길이
+            val w = 3.dp.toPx()       // 선 두께
+            val r = 18.dp.toPx()      // 모서리 곡률
+            val i = w / 2f            // 선이 영역 안에 들어오도록 inset
+            val ww = size.width
+            val hh = size.height
+            val stroke = Stroke(width = w, cap = StrokeCap.Round, join = StrokeJoin.Round)
+
+            // 각 모서리를 직선→곡선→직선 하나의 Path로 그려 끊김 없이 둥근 ㄱ자 형성
+            fun bracket(build: Path.() -> Unit) =
+                drawPath(Path().apply(build), color = frameColor, style = stroke)
+
+            // 좌상단 ┌
+            bracket {
+                moveTo(i + arm, i)
+                lineTo(i + r, i)
+                quadraticBezierTo(i, i, i, i + r)
+                lineTo(i, i + arm)
             }
-            corner(rad, w / 2, 1, 0); corner(w / 2, rad, 0, 1)                                   // TL
-            corner(size.width - rad, w / 2, -1, 0); corner(size.width - w / 2, rad, 0, 1)        // TR
-            corner(rad, size.height - w / 2, 1, 0); corner(w / 2, size.height - rad, 0, -1)      // BL
-            corner(size.width - rad, size.height - w / 2, -1, 0); corner(size.width - w / 2, size.height - rad, 0, -1) // BR
+            // 우상단 ┐
+            bracket {
+                moveTo(ww - i - arm, i)
+                lineTo(ww - i - r, i)
+                quadraticBezierTo(ww - i, i, ww - i, i + r)
+                lineTo(ww - i, i + arm)
+            }
+            // 좌하단 └
+            bracket {
+                moveTo(i, hh - i - arm)
+                lineTo(i, hh - i - r)
+                quadraticBezierTo(i, hh - i, i + r, hh - i)
+                lineTo(i + arm, hh - i)
+            }
+            // 우하단 ┘
+            bracket {
+                moveTo(ww - i, hh - i - arm)
+                lineTo(ww - i, hh - i - r)
+                quadraticBezierTo(ww - i, hh - i, ww - i - r, hh - i)
+                lineTo(ww - i - arm, hh - i)
+            }
         }
     }
 }
