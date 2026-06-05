@@ -1,220 +1,209 @@
 package com.mgpark.fridgelab.ui.recipes
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.mgpark.fridgelab.domain.model.Ingredient
+import androidx.compose.ui.unit.sp
 import com.mgpark.fridgelab.domain.model.Recipe
-import com.mgpark.fridgelab.ui.components.AccentButton
-import com.mgpark.fridgelab.ui.components.EmptyState
-import com.mgpark.fridgelab.ui.components.ErrorState
-import com.mgpark.fridgelab.ui.components.LoadingState
-import com.mgpark.fridgelab.ui.theme.FridgeLabTheme
+import com.mgpark.fridgelab.navigation.RecipesUiState
+import com.mgpark.fridgelab.ui.components.FridgeIcons
+import com.mgpark.fridgelab.ui.components.MatchRing
+import com.mgpark.fridgelab.ui.components.StripedPlaceholder
+import com.mgpark.fridgelab.ui.components.fridgeCard
+import com.mgpark.fridgelab.ui.theme.FridgeRadius
+import com.mgpark.fridgelab.ui.theme.FridgeTheme
+
+private enum class Sort(val label: String) { MATCH("매칭률순"), TIME("빠른 조리"), LEVEL("쉬운 난이도") }
 
 @Composable
 fun RecipesScreen(
-    ingredients: List<Ingredient>,
-    onRestart: () -> Unit,
-    viewModel: RecipesViewModel = hiltViewModel()
+    ingredientCount: Int,
+    state: RecipesUiState,
+    onBack: () -> Unit,
+    onOpen: (String) -> Unit,
+    onRetry: () -> Unit
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val c = FridgeTheme.colors
+    var sort by remember { mutableStateOf(Sort.MATCH) }
 
-    LaunchedEffect(ingredients) {
-        if (ingredients.isNotEmpty()) {
-            viewModel.handleIntent(RecipesIntent.OnRecommend(ingredients))
+    val sorted = remember(state.recipes, sort) {
+        when (sort) {
+            Sort.MATCH -> state.recipes.sortedByDescending { it.matchPct }
+            Sort.TIME -> state.recipes.sortedBy { it.timeMin }
+            Sort.LEVEL -> state.recipes.sortedBy { it.level.rank }
         }
     }
 
-    RecipesContent(
-        state = state,
-        onRefresh = { viewModel.handleIntent(RecipesIntent.OnRefresh) },
-        onRestart = onRestart
-    )
+    Column(Modifier.fillMaxSize().background(c.bg)) {
+        // ── header ──
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(top = 6.dp)
+        ) {
+            Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
+                    Icon(FridgeIcons.back, "뒤로", tint = c.ink, modifier = Modifier.size(22.dp))
+                }
+            }
+            Column(Modifier.padding(horizontal = 22.dp).padding(top = 6.dp, bottom = 14.dp)) {
+                Text("추천 레시피", color = c.ink, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
+                Row(Modifier.padding(top = 6.dp)) {
+                    Text("내 재료 ", color = c.ink2, fontSize = 14.sp)
+                    Text("${ingredientCount}개", color = c.primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("로 만들 수 있는 ${state.recipes.size}가지 요리예요", color = c.ink2, fontSize = 14.sp)
+                }
+            }
+            LazyRow(
+                Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(Sort.entries) { s ->
+                    val sel = s == sort
+                    Box(
+                        Modifier
+                            .height(34.dp)
+                            .clip(CircleShape)
+                            .background(if (sel) c.primary else c.surface)
+                            .border(1.dp, if (sel) c.primary else c.line, CircleShape)
+                            .clickable { sort = s }
+                            .padding(horizontal = 15.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(s.label, color = if (sel) c.primaryInk else c.ink2, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+
+        // ── body ──
+        when {
+            state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = c.primary)
+                    Text("레시피를 찾고 있어요...", color = c.ink2, fontSize = 14.sp, modifier = Modifier.padding(top = 16.dp))
+                }
+            }
+
+            state.error != null -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(state.error, color = c.soonFg, fontSize = 14.sp, textAlign = TextAlign.Center)
+                    Box(
+                        Modifier.padding(top = 14.dp).clip(CircleShape).background(c.primary)
+                            .clickable(onClick = onRetry).padding(horizontal = 20.dp, vertical = 10.dp)
+                    ) { Text("다시 시도", color = c.primaryInk, fontWeight = FontWeight.Bold) }
+                }
+            }
+
+            else -> LazyColumn(
+                Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 40.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                items(sorted, key = { it.id }) { r -> RecipeCard(r) { onOpen(r.id) } }
+            }
+        }
+    }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RecipesContent(
-    state: RecipesState,
-    onRefresh: () -> Unit,
-    onRestart: () -> Unit
-) {
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("추천 레시피") }) }
-    ) { padding ->
-        if (state.isLoading) {
-            LoadingState(
-                message = "레시피를 만드는 중...",
-                modifier = Modifier.padding(padding)
-            )
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 20.dp)
+private fun RecipeCard(r: Recipe, onClick: () -> Unit) {
+    val c = FridgeTheme.colors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .fridgeCard()
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(13.dp)
+    ) {
+        Box {
+            StripedPlaceholder("음식", modifier = Modifier.size(104.dp))
+            Row(
+                Modifier
+                    .padding(6.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x80000000))
+                    .padding(horizontal = 7.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
-                when {
-                    state.recipes.isEmpty() && state.errorMessage != null ->
-                        ErrorState(
-                            message = state.errorMessage,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                    state.recipes.isEmpty() ->
-                        EmptyState(
-                            message = "추천된 레시피가 없습니다.",
-                            modifier = Modifier.weight(1f)
-                        )
-
-                    else -> LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(vertical = 12.dp)
+                Icon(FridgeIcons.clock, null, tint = Color.White, modifier = Modifier.size(12.dp))
+                Text("${r.timeMin}분", color = Color.White, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    Text(r.name, color = c.ink, fontSize = 16.5.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        Modifier.padding(top = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(state.recipes) { recipe ->
-                            RecipeCard(recipe = recipe)
+                        Icon(FridgeIcons.flame, null, tint = c.ink3, modifier = Modifier.size(13.dp))
+                        Text(r.level.label, color = c.ink2, fontSize = 12.5.sp)
+                        Box(Modifier.size(3.dp).clip(CircleShape).background(c.ink3))
+                        Icon(FridgeIcons.users, null, tint = c.ink3, modifier = Modifier.size(13.dp))
+                        Text("${r.servings}인분", color = c.ink2, fontSize = 12.5.sp)
+                    }
+                }
+                MatchRing(r.matchPct, size = 44.dp, stroke = 4.dp)
+            }
+            Box(Modifier.height(8.dp))
+            if (r.missing.isEmpty()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Icon(FridgeIcons.check, null, tint = c.primary, modifier = Modifier.size(14.dp))
+                    Text("재료가 다 있어요", color = c.primary, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("부족", color = c.ink3, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    r.missing.take(3).forEach { n ->
+                        Box(
+                            Modifier.clip(CircleShape).background(c.missChipBg).padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(n.name, color = c.warn, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onRefresh,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("다시 추천")
-                    }
-                    AccentButton(
-                        text = "다시 촬영하기",
-                        onClick = onRestart,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
             }
         }
-    }
-}
-
-@Composable
-private fun RecipeCard(recipe: Recipe) {
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = recipe.title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            SectionHeader("재료")
-            recipe.ingredients.forEach { ingredient ->
-                Text(
-                    text = "• $ingredient",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-
-            SectionHeader("조리 순서")
-            recipe.steps.forEachIndexed { index, step ->
-                Row(modifier = Modifier.padding(bottom = 4.dp)) {
-                    Text(
-                        text = "${index + 1}.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                    Text(text = step, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SectionHeader(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.secondary,
-        modifier = Modifier.padding(top = 14.dp, bottom = 6.dp)
-    )
-}
-
-private val SAMPLE_RECIPES = listOf(
-    Recipe(
-        title = "토마토 계란 볶음",
-        ingredients = listOf("토마토 2개", "계란 3개", "소금 약간", "대파 1대"),
-        steps = listOf("토마토를 한입 크기로 썬다", "계란을 풀어 스크램블한다", "토마토를 넣고 볶는다", "소금으로 간한다")
-    ),
-    Recipe(
-        title = "양파 수프",
-        ingredients = listOf("양파 1개", "버터 1큰술", "물 2컵", "소금 약간"),
-        steps = listOf("양파를 채 썬다", "버터에 갈색이 나도록 볶는다", "물을 붓고 끓인다", "소금으로 간한다")
-    )
-)
-
-@Preview(showBackground = true, name = "Recipes - 레시피 있음")
-@Composable
-private fun RecipesContentPreview() {
-    FridgeLabTheme {
-        RecipesContent(
-            state = RecipesState(recipes = SAMPLE_RECIPES),
-            onRefresh = {},
-            onRestart = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, name = "Recipes - 로딩")
-@Composable
-private fun RecipesContentLoadingPreview() {
-    FridgeLabTheme {
-        RecipesContent(
-            state = RecipesState(isLoading = true),
-            onRefresh = {},
-            onRestart = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, name = "Recipes - 에러")
-@Composable
-private fun RecipesContentErrorPreview() {
-    FridgeLabTheme {
-        RecipesContent(
-            state = RecipesState(errorMessage = "레시피를 불러오지 못했습니다: 네트워크 오류"),
-            onRefresh = {},
-            onRestart = {}
-        )
     }
 }
