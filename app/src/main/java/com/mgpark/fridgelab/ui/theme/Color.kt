@@ -1,51 +1,73 @@
 package com.mgpark.fridgelab.ui.theme
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
-// ── Light ──────────────────────────────────────────────
-val GreenPrimary = Color(0xFF2E7D32)
-val GreenOnPrimary = Color(0xFFFFFFFF)
-val GreenPrimaryContainer = Color(0xFFB7E4BA)
-val GreenOnPrimaryContainer = Color(0xFF002106)
+/**
+ * 디자인 핸드오프의 전체 토큰 묶음.
+ * Material3 colorScheme로는 다 담기지 않는 보조 토큰(chip, ink-2/3, primary-soft 등)과
+ * 카테고리·신선도·경고 색을 함께 보관한다.
+ */
+@Immutable
+data class FridgeColors(
+    val bg: Color,
+    val surface: Color,
+    val chip: Color,
+    val ink: Color,
+    val ink2: Color,
+    val ink3: Color,
+    val line: Color,
+    val primary: Color,
+    val primaryInk: Color,
+    val primarySoft: Color,
+    val primaryBright: Color,
+    // 카테고리 점/라벨
+    val catVeg: Color,
+    val catMeat: Color,
+    val catDairy: Color,
+    val catFruit: Color,
+    val catEtc: Color,
+    // 신선도 (글자 / 배경)
+    val freshFg: Color,
+    val freshBg: Color,
+    val okFg: Color,
+    val okBg: Color,
+    val soonFg: Color,
+    val soonBg: Color,
+    // 경고/부족 (앰버)
+    val warn: Color,
+    val warnBadgeBg: Color,
+    val missChipBg: Color
+)
 
-val GreenSecondary = Color(0xFF52634F)
-val GreenOnSecondary = Color(0xFFFFFFFF)
-val GreenSecondaryContainer = Color(0xFFD5E8CF)
-val GreenOnSecondaryContainer = Color(0xFF111F0F)
+/** 기본 테마 = 민트 (README 4.1). */
+val MintColors = FridgeColors(
+    bg = Color(0xFFF4FDF7),
+    surface = Color(0xFFFFFFFF),
+    chip = Color(0xFFE7F1EB),
+    ink = Color(0xFF19251E),
+    ink2 = Color(0xFF5B6760),
+    ink3 = Color(0xFF949E98),
+    line = Color(0xFFE2EAE5),
+    primary = Color(0xFF2D9D68),
+    primaryInk = Color(0xFFFFFFFF),
+    primarySoft = Color(0xFFD6F8E4),
+    primaryBright = Color(0xFF58DA98),
+    catVeg = Color(0xFF3A8357),
+    catMeat = Color(0xFFA4585B),
+    catDairy = Color(0xFF4075AA),
+    catFruit = Color(0xFF966626),
+    catEtc = Color(0xFF7B63A3),
+    freshFg = Color(0xFF1A763F),
+    freshBg = Color(0xFFD2FBDB),
+    okFg = Color(0xFF855B00),
+    okBg = Color(0xFFFFECBD),
+    soonFg = Color(0xFFAA3700),
+    soonBg = Color(0xFFFFDDC6),
+    warn = Color(0xFF974D00),
+    warnBadgeBg = Color(0xFFFFEAC2),
+    missChipBg = Color(0xFFFFE9CB)
+)
 
-val OrangeTertiary = Color(0xFFF57C00)
-val OrangeOnTertiary = Color(0xFFFFFFFF)
-val OrangeTertiaryContainer = Color(0xFFFFDCBE)
-val OrangeOnTertiaryContainer = Color(0xFF2B1700)
-
-val BackgroundLight = Color(0xFFF8FAF6)
-val OnBackgroundLight = Color(0xFF191D17)
-val SurfaceLight = Color(0xFFFFFFFF)
-val OnSurfaceLight = Color(0xFF191D17)
-val SurfaceVariantLight = Color(0xFFDDE5D8)
-val OnSurfaceVariantLight = Color(0xFF424940)
-val OutlineLight = Color(0xFF727970)
-
-// ── Dark ───────────────────────────────────────────────
-val GreenPrimaryDark = Color(0xFF9CD49F)
-val GreenOnPrimaryDark = Color(0xFF003910)
-val GreenPrimaryContainerDark = Color(0xFF15521C)
-val GreenOnPrimaryContainerDark = Color(0xFFB7E4BA)
-
-val GreenSecondaryDark = Color(0xFFB9CCB4)
-val GreenOnSecondaryDark = Color(0xFF253423)
-val GreenSecondaryContainerDark = Color(0xFF3B4B38)
-val GreenOnSecondaryContainerDark = Color(0xFFD5E8CF)
-
-val OrangeTertiaryDark = Color(0xFFFFB871)
-val OrangeOnTertiaryDark = Color(0xFF482900)
-val OrangeTertiaryContainerDark = Color(0xFFBA5E00)
-val OrangeOnTertiaryContainerDark = Color(0xFFFFDCBE)
-
-val BackgroundDark = Color(0xFF111411)
-val OnBackgroundDark = Color(0xFFE1E3DC)
-val SurfaceDark = Color(0xFF1A1C19)
-val OnSurfaceDark = Color(0xFFE1E3DC)
-val SurfaceVariantDark = Color(0xFF424940)
-val OnSurfaceVariantDark = Color(0xFFC1C9BB)
-val OutlineDark = Color(0xFF8B938A)
+val LocalFridgeColors = staticCompositionLocalOf { MintColors }

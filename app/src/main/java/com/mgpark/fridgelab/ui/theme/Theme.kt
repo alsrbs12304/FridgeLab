@@ -1,79 +1,68 @@
 package com.mgpark.fridgelab.ui.theme
 
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.dp
 
-private val DarkColorScheme = darkColorScheme(
-    primary = GreenPrimaryDark,
-    onPrimary = GreenOnPrimaryDark,
-    primaryContainer = GreenPrimaryContainerDark,
-    onPrimaryContainer = GreenOnPrimaryContainerDark,
-    secondary = GreenSecondaryDark,
-    onSecondary = GreenOnSecondaryDark,
-    secondaryContainer = GreenSecondaryContainerDark,
-    onSecondaryContainer = GreenOnSecondaryContainerDark,
-    tertiary = OrangeTertiaryDark,
-    onTertiary = OrangeOnTertiaryDark,
-    tertiaryContainer = OrangeTertiaryContainerDark,
-    onTertiaryContainer = OrangeOnTertiaryContainerDark,
-    background = BackgroundDark,
-    onBackground = OnBackgroundDark,
-    surface = SurfaceDark,
-    onSurface = OnSurfaceDark,
-    surfaceVariant = SurfaceVariantDark,
-    onSurfaceVariant = OnSurfaceVariantDark,
-    outline = OutlineDark
+/** 라운딩 = "둥글게" (README 4.5). 칩/스텝퍼는 항상 pill. */
+object FridgeRadius {
+    val sm = 12.dp   // 작은 칩/입력
+    val md = 18.dp   // 버튼/이미지/스탯
+    val lg = 24.dp   // 카드/리스트
+    val pill = 99.dp
+}
+
+val FridgeShapes = Shapes(
+    small = RoundedCornerShape(FridgeRadius.sm),
+    medium = RoundedCornerShape(FridgeRadius.md),
+    large = RoundedCornerShape(FridgeRadius.lg)
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = GreenPrimary,
-    onPrimary = GreenOnPrimary,
-    primaryContainer = GreenPrimaryContainer,
-    onPrimaryContainer = GreenOnPrimaryContainer,
-    secondary = GreenSecondary,
-    onSecondary = GreenOnSecondary,
-    secondaryContainer = GreenSecondaryContainer,
-    onSecondaryContainer = GreenOnSecondaryContainer,
-    tertiary = OrangeTertiary,
-    onTertiary = OrangeOnTertiary,
-    tertiaryContainer = OrangeTertiaryContainer,
-    onTertiaryContainer = OrangeOnTertiaryContainer,
-    background = BackgroundLight,
-    onBackground = OnBackgroundLight,
-    surface = SurfaceLight,
-    onSurface = OnSurfaceLight,
-    surfaceVariant = SurfaceVariantLight,
-    onSurfaceVariant = OnSurfaceVariantLight,
-    outline = OutlineLight
+/** 민트 토큰을 Material3 colorScheme로 매핑 (Material 컴포넌트 기본색용). */
+private val MintColorScheme = lightColorScheme(
+    primary = MintColors.primary,
+    onPrimary = MintColors.primaryInk,
+    primaryContainer = MintColors.primarySoft,
+    onPrimaryContainer = MintColors.ink,
+    secondary = MintColors.primary,
+    onSecondary = MintColors.primaryInk,
+    background = MintColors.bg,
+    onBackground = MintColors.ink,
+    surface = MintColors.surface,
+    onSurface = MintColors.ink,
+    surfaceVariant = MintColors.chip,
+    onSurfaceVariant = MintColors.ink2,
+    outline = MintColors.line,
+    error = MintColors.soonFg
 )
+
+/** 테마/토큰/라운딩 접근용 헬퍼. `FridgeTheme.colors.primary` 형태로 사용. */
+object FridgeTheme {
+    val colors: FridgeColors
+        @Composable @ReadOnlyComposable get() = LocalFridgeColors.current
+    val radius get() = FridgeRadius
+}
 
 @Composable
 fun FridgeLabTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // 브랜드 색 일관성을 위해 기본적으로 끔(Material You 미사용)
-    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    CompositionLocalProvider(
+        LocalFridgeColors provides MintColors,
+        LocalTextStyle provides TextStyle(fontFamily = Pretendard, color = MintColors.ink)
+    ) {
+        MaterialTheme(
+            colorScheme = MintColorScheme,
+            typography = FridgeTypography,
+            shapes = FridgeShapes,
+            content = content
+        )
     }
-
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
 }

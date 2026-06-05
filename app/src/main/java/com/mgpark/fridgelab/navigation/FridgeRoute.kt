@@ -8,4 +8,5 @@ sealed class FridgeRoute(val route: String) {
     data object Camera : FridgeRoute("camera")
     data object Ingredients : FridgeRoute("ingredients")
     data object Recipes : FridgeRoute("recipes")
+    data object Detail : FridgeRoute("detail")
 }
