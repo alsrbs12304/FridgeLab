@@ -2,6 +2,9 @@ package com.mgpark.fridgelab.ui.camera
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,6 +22,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -53,10 +57,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -71,6 +78,18 @@ import com.mgpark.fridgelab.ui.theme.FridgeTheme
 import kotlinx.coroutines.launch
 
 private val CamDark = Color(0xFF0E1411)
+
+/** 촬영 JPEG을 회전 보정해 정지 표시용 ImageBitmap으로 디코드. */
+private fun decodeRotated(bytes: ByteArray, rotation: Int): ImageBitmap? {
+    val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+    val out = if (rotation != 0) {
+        val m = Matrix().apply { postRotate(rotation.toFloat()) }
+        Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
+    } else {
+        bmp
+    }
+    return out.asImageBitmap()
+}
 
 @Composable
 fun CameraScreen(
@@ -117,6 +136,7 @@ private fun BoxScope.CameraContent(
     var lensBack by remember { mutableStateOf(true) }
     var flashOn by remember { mutableStateOf(false) }
     val flashFx = remember { Animatable(0f) }
+    var captured by remember { mutableStateOf<ImageBitmap?>(null) }
 
     val analyzing = analysis.analyzing
 
@@ -142,7 +162,10 @@ private fun BoxScope.CameraContent(
         if (uri != null) {
             runCatching {
                 context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            }.getOrNull()?.let(onCapture)
+            }.getOrNull()?.let { bytes ->
+                captured = decodeRotated(bytes, 0)
+                onCapture(bytes)
+            }
         }
     }
 
@@ -154,7 +177,9 @@ private fun BoxScope.CameraContent(
                 object : ImageCapture.OnImageCapturedCallback() {
                     override fun onCaptureSuccess(image: ImageProxy) {
                         val bytes = image.toJpegByteArray()
+                        val rotation = image.imageInfo.rotationDegrees
                         image.close()
+                        captured = decodeRotated(bytes, rotation)
                         onCapture(bytes)
                     }
 
@@ -166,6 +191,16 @@ private fun BoxScope.CameraContent(
 
     // ── viewfinder ──
     AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+
+    // 셔터를 누르면 촬영한 사진을 정지 화면으로 고정 (분석 중 라이브 흔들림 방지)
+    captured?.let { frame ->
+        Image(
+            bitmap = frame,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+    }
 
     // dim during analysis
     Box(
