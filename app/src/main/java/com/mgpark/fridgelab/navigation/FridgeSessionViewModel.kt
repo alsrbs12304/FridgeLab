@@ -1,5 +1,6 @@
 package com.mgpark.fridgelab.navigation
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mgpark.fridgelab.domain.model.Category
@@ -19,19 +20,21 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** 카메라 셔터 후 AI 분석 진행 상태. */
+/** 카메라 셔터 후 AI 분석 진행 상태. notice = 진행 중 보조 안내(예: 자동 재시도). */
 data class AnalysisState(
     val analyzing: Boolean = false,
     val progress: Float = 0f,
     val foundCount: Int = 0,
-    val done: Boolean = false
+    val done: Boolean = false,
+    val notice: String? = null
 )
 
-/** 레시피 추천 로딩/결과 상태. */
+/** 레시피 추천 로딩/결과 상태. notice = 로딩 중 보조 안내(예: 자동 재시도). */
 data class RecipesUiState(
     val loading: Boolean = false,
     val recipes: List<Recipe> = emptyList(),
-    val error: String? = null
+    val error: String? = null,
+    val notice: String? = null
 )
 
 /**
@@ -56,6 +59,10 @@ class FridgeSessionViewModel @Inject constructor(
     private val _openRecipeId = MutableStateFlow<String?>(null)
     val openRecipeId: StateFlow<String?> = _openRecipeId.asStateFlow()
 
+    // 인식 실패 사유(0개일 때 재료 화면에 안내). 성공 시 null.
+    private val _recognizeError = MutableStateFlow<String?>(null)
+    val recognizeError: StateFlow<String?> = _recognizeError.asStateFlow()
+
     private var addCounter = 0
     private var recommendJob: Job? = null
     private var lastQuery: String? = null
@@ -63,6 +70,7 @@ class FridgeSessionViewModel @Inject constructor(
     // ── 카메라: 셔터 → 분석 애니메이션 + 실제 Gemini 인식 ──
     fun startAnalysis(image: ByteArray, onComplete: () -> Unit) {
         if (_analysis.value.analyzing) return
+        _recognizeError.value = null
         _analysis.value = AnalysisState(analyzing = true)
         viewModelScope.launch {
             // 진행률 애니메이션을 실제 호출과 함께 진행(완료 전까지 92%까지만)
@@ -74,15 +82,39 @@ class FridgeSessionViewModel @Inject constructor(
                     _analysis.update { it.copy(progress = p, foundCount = (p * 13).toInt()) }
                 }
             }
-            val result = try {
-                recognizeIngredients(image)
-            } catch (e: Exception) {
-                emptyList()
+
+            var attempt = 0
+            var ingredients: List<Ingredient> = emptyList()
+            var error: String? = null
+            while (true) {
+                try {
+                    ingredients = recognizeIngredients(image)
+                    break
+                } catch (e: Exception) {
+                    Log.e(TAG, "재료 인식 실패 (시도 ${attempt + 1})", e)
+                    val waitMs = quotaWaitMillis(e)
+                    if (waitMs != null && attempt < MAX_RETRY) {
+                        attempt++
+                        val sec = (waitMs + 999) / 1000
+                        _analysis.update { it.copy(notice = "요청이 많아요 · ${sec}초 후 자동 재시도 ($attempt/$MAX_RETRY)") }
+                        delay(waitMs)
+                        _analysis.update { it.copy(notice = null) }
+                    } else {
+                        error = if (quotaWaitMillis(e) != null)
+                            "요청 한도를 초과했어요. 잠시 후 다시 촬영해 주세요."
+                        else
+                            "재료를 인식하지 못했어요. 다시 촬영하거나 직접 추가해 주세요."
+                        break
+                    }
+                }
             }
             anim.cancel()
-            _ingredients.value = result
+            _ingredients.value = ingredients
+            // 호출은 성공했지만 인식 결과가 0개인 경우도 안내
+            _recognizeError.value = error
+                ?: if (ingredients.isEmpty()) "사진에서 재료를 찾지 못했어요. 다시 촬영하거나 직접 추가해 주세요." else null
             _analysis.value = AnalysisState(
-                analyzing = true, progress = 1f, foundCount = result.size, done = true
+                analyzing = true, progress = 1f, foundCount = ingredients.size, done = true
             )
             delay(450)
             _analysis.value = AnalysisState()
@@ -141,18 +173,57 @@ class FridgeSessionViewModel @Inject constructor(
 
         lastQuery = signature
         recommendJob = viewModelScope.launch {
-            _recipes.update { it.copy(loading = true, error = null) }
-            try {
-                val result = recommendRecipes(selected)
-                _recipes.value = RecipesUiState(loading = false, recipes = result)
-            } catch (e: Exception) {
-                lastQuery = null  // 실패 시 동일 재료로도 재시도 가능하게
-                _recipes.value = RecipesUiState(
-                    loading = false,
-                    error = "레시피를 불러오지 못했어요: ${e.message}"
-                )
+            _recipes.update { it.copy(loading = true, error = null, notice = null) }
+            var attempt = 0
+            while (true) {
+                try {
+                    val result = recommendRecipes(selected)
+                    _recipes.value = RecipesUiState(loading = false, recipes = result)
+                    return@launch
+                } catch (e: Exception) {
+                    val waitMs = quotaWaitMillis(e)
+                    if (waitMs != null && attempt < MAX_RETRY) {
+                        // 할당량(rate limit) 오류 → 안내된 시간만큼 기다렸다 자동 재시도
+                        attempt++
+                        val sec = (waitMs + 999) / 1000
+                        _recipes.update {
+                            it.copy(
+                                loading = true, error = null,
+                                notice = "요청이 많아요 · ${sec}초 후 자동 재시도 ($attempt/$MAX_RETRY)"
+                            )
+                        }
+                        delay(waitMs)
+                    } else {
+                        lastQuery = null  // 실패 시 동일 재료로도 재시도 가능하게
+                        _recipes.value = RecipesUiState(loading = false, error = friendlyError(e))
+                        return@launch
+                    }
+                }
             }
         }
+    }
+
+    /** quota/rate-limit 오류면 권장 대기(ms)를 반환, 아니면 null. */
+    private fun quotaWaitMillis(e: Throwable): Long? {
+        val msg = (e.message ?: "") + " " + (e.cause?.message ?: "")
+        val isQuota = listOf("quota", "RESOURCE_EXHAUSTED", "429", "rate limit", "exceeded your current quota")
+            .any { msg.contains(it, ignoreCase = true) }
+        if (!isQuota) return null
+        val sec = Regex("""retry in ([0-9]+(?:\.[0-9]+)?)\s*s""", RegexOption.IGNORE_CASE)
+            .find(msg)?.groupValues?.get(1)?.toDoubleOrNull()
+            ?: Regex("""retryDelay"?\s*[:=]?\s*"?([0-9]+(?:\.[0-9]+)?)s""", RegexOption.IGNORE_CASE)
+                .find(msg)?.groupValues?.get(1)?.toDoubleOrNull()
+            ?: 20.0
+        return (sec * 1000).toLong().coerceIn(1000L, 60_000L) + 500L
+    }
+
+    private fun friendlyError(e: Throwable): String =
+        if (quotaWaitMillis(e) != null) "요청 한도를 초과했어요. 잠시 후 다시 시도해 주세요."
+        else "레시피를 불러오지 못했어요: ${e.message}"
+
+    private companion object {
+        const val MAX_RETRY = 2
+        const val TAG = "FridgeLab"
     }
 
     // ── 상세 ──

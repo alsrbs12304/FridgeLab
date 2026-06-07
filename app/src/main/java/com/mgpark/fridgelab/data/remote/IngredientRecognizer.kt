@@ -1,6 +1,7 @@
 package com.mgpark.fridgelab.data.remote
 
 import android.graphics.BitmapFactory
+import android.util.Log
 import com.google.firebase.ai.FirebaseAI
 import com.google.firebase.ai.type.Schema
 import com.google.firebase.ai.type.content
@@ -37,13 +38,19 @@ class IngredientRecognizer @Inject constructor(
                 text(PROMPT)
             }
         )
-        val raw = response.text ?: return@withContext emptyList()
-        json.decodeFromString<List<IngredientDto>>(raw)
-            .filter { it.name.isNotBlank() }
-            .mapIndexed { index, dto -> dto.toDomain(id = "ai_${index}_${dto.name}") }
+        val raw = response.text
+        if (raw.isNullOrBlank()) {
+            Log.w(TAG, "Gemini 응답이 비어있음 (text=null/blank)")
+            return@withContext emptyList()
+        }
+        val parsed = json.decodeFromString<List<IngredientDto>>(raw).filter { it.name.isNotBlank() }
+        Log.d(TAG, "인식 결과 ${parsed.size}개")
+        parsed.mapIndexed { index, dto -> dto.toDomain(id = "ai_${index}_${dto.name}") }
     }
 
     private companion object {
+        const val TAG = "FridgeLab"
+
         const val PROMPT =
             "이 냉장고/식료품 사진에 보이는 식재료를 모두 찾아주세요. " +
                 "각 재료에 대해 이름(한국어), 카테고리(veg 채소 / meat 고기·해산물 / dairy 유제품·달걀 / fruit 과일 / etc 양념·기타), " +

@@ -306,6 +306,7 @@ private fun BoxScope.CameraContent(
         AnalyzingCard(
             progress = analysis.progress,
             found = analysis.foundCount,
+            notice = analysis.notice,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -417,7 +418,7 @@ private fun ScanLine() {
 }
 
 @Composable
-private fun AnalyzingCard(progress: Float, found: Int, modifier: Modifier) {
+private fun AnalyzingCard(progress: Float, found: Int, notice: String?, modifier: Modifier) {
     val primaryBright = FridgeTheme.colors.primaryBright
 
     // 별 아이콘 회전 (1.6초 루프) — AI가 분석 중인 느낌
@@ -446,7 +447,10 @@ private fun AnalyzingCard(progress: Float, found: Int, modifier: Modifier) {
                 Icon(FridgeIcons.sparkle, null, tint = primaryBright, modifier = Modifier.size(20.dp).rotate(angle))
                 Column(Modifier.weight(1f)) {
                     Text("AI가 재료를 분석하고 있어요", color = Color.White, fontSize = 15.5.sp, fontWeight = FontWeight.Bold)
-                    Text("지금까지 ${found}개 재료를 찾았어요", color = Color(0x99FFFFFF), fontSize = 12.5.sp)
+                    Text(
+                        notice ?: "지금까지 ${found}개 재료를 찾았어요",
+                        color = Color(0x99FFFFFF), fontSize = 12.5.sp
+                    )
                 }
             }
             // 커스텀 진행 바 — 빈 트랙 위로 채움이 늘어남 (gap/stop 표시 없음)
