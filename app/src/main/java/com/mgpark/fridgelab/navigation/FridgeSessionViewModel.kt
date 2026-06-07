@@ -92,7 +92,7 @@ class FridgeSessionViewModel @Inject constructor(
                     break
                 } catch (e: Exception) {
                     Log.e(TAG, "재료 인식 실패 (시도 ${attempt + 1})", e)
-                    val waitMs = quotaWaitMillis(e)
+                    val waitMs = quotaRetryMillis(e)
                     if (waitMs != null && attempt < MAX_RETRY) {
                         attempt++
                         val sec = (waitMs + 999) / 1000
@@ -100,10 +100,14 @@ class FridgeSessionViewModel @Inject constructor(
                         delay(waitMs)
                         _analysis.update { it.copy(notice = null) }
                     } else {
-                        error = if (quotaWaitMillis(e) != null)
-                            "요청 한도를 초과했어요. 잠시 후 다시 촬영해 주세요."
-                        else
-                            "재료를 인식하지 못했어요. 다시 촬영하거나 직접 추가해 주세요."
+                        error = when {
+                            isQuotaError(e) && quotaRetryMillis(e) == null ->
+                                "무료 사용량(일일 한도)을 모두 사용했어요. 잠시 뒤 다시 시도하거나 요금제를 확인해 주세요."
+                            isQuotaError(e) ->
+                                "요청 한도를 초과했어요. 잠시 후 다시 촬영해 주세요."
+                            else ->
+                                "재료를 인식하지 못했어요. 다시 촬영하거나 직접 추가해 주세요."
+                        }
                         break
                     }
                 }
@@ -181,9 +185,9 @@ class FridgeSessionViewModel @Inject constructor(
                     _recipes.value = RecipesUiState(loading = false, recipes = result)
                     return@launch
                 } catch (e: Exception) {
-                    val waitMs = quotaWaitMillis(e)
+                    val waitMs = quotaRetryMillis(e)
                     if (waitMs != null && attempt < MAX_RETRY) {
-                        // 할당량(rate limit) 오류 → 안내된 시간만큼 기다렸다 자동 재시도
+                        // 재시도 시간이 명시된 quota 오류(분당 한도) → 그만큼 기다렸다 자동 재시도
                         attempt++
                         val sec = (waitMs + 999) / 1000
                         _recipes.update {
@@ -203,23 +207,38 @@ class FridgeSessionViewModel @Inject constructor(
         }
     }
 
-    /** quota/rate-limit 오류면 권장 대기(ms)를 반환, 아니면 null. */
-    private fun quotaWaitMillis(e: Throwable): Long? {
+    /** quota/rate-limit 오류 여부. */
+    private fun isQuotaError(e: Throwable): Boolean {
+        val cls = e.javaClass.name
+        if (cls.contains("Quota", true) || cls.contains("ResourceExhausted", true)) return true
         val msg = (e.message ?: "") + " " + (e.cause?.message ?: "")
-        val isQuota = listOf("quota", "RESOURCE_EXHAUSTED", "429", "rate limit", "exceeded your current quota")
+        return listOf("quota", "RESOURCE_EXHAUSTED", "429", "rate limit", "exceeded your current quota")
             .any { msg.contains(it, ignoreCase = true) }
-        if (!isQuota) return null
+    }
+
+    /**
+     * 재시도 권장 시간(ms)을 반환. **명시된 retry 시간이 있을 때만** 값을 주고,
+     * 없으면(=일일/하드 한도라 기다려도 소용없음) null → 재시도하지 않는다.
+     */
+    private fun quotaRetryMillis(e: Throwable): Long? {
+        if (!isQuotaError(e)) return null
+        val msg = (e.message ?: "") + " " + (e.cause?.message ?: "")
         val sec = Regex("""retry in ([0-9]+(?:\.[0-9]+)?)\s*s""", RegexOption.IGNORE_CASE)
             .find(msg)?.groupValues?.get(1)?.toDoubleOrNull()
             ?: Regex("""retryDelay"?\s*[:=]?\s*"?([0-9]+(?:\.[0-9]+)?)s""", RegexOption.IGNORE_CASE)
                 .find(msg)?.groupValues?.get(1)?.toDoubleOrNull()
-            ?: 20.0
+            ?: return null   // 재시도 시간이 없으면 재시도하지 않음
         return (sec * 1000).toLong().coerceIn(1000L, 60_000L) + 500L
     }
 
-    private fun friendlyError(e: Throwable): String =
-        if (quotaWaitMillis(e) != null) "요청 한도를 초과했어요. 잠시 후 다시 시도해 주세요."
-        else "레시피를 불러오지 못했어요: ${e.message}"
+    private fun friendlyError(e: Throwable): String = when {
+        isQuotaError(e) && quotaRetryMillis(e) == null ->
+            "무료 사용량(일일 한도)을 모두 사용했어요. 잠시 뒤 다시 시도하거나 요금제를 확인해 주세요."
+        isQuotaError(e) ->
+            "요청 한도를 초과했어요. 잠시 후 다시 시도해 주세요."
+        else ->
+            "레시피를 불러오지 못했어요: ${e.message}"
+    }
 
     private companion object {
         const val MAX_RETRY = 2
