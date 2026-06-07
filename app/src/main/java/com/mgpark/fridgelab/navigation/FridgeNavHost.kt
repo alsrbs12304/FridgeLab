@@ -88,7 +88,7 @@ fun FridgeNavHost(
                     session.openRecipe(id)
                     navController.navigate(FridgeRoute.Detail.route)
                 },
-                onRetry = session::recommend
+                onRetry = { session.recommend(force = true) }
             )
         }
 
