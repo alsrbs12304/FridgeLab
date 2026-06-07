@@ -9,6 +9,7 @@ import com.mgpark.fridgelab.domain.model.Recipe
 import com.mgpark.fridgelab.domain.usecase.RecognizeIngredientsUseCase
 import com.mgpark.fridgelab.domain.usecase.RecommendRecipesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -56,6 +57,8 @@ class FridgeSessionViewModel @Inject constructor(
     val openRecipeId: StateFlow<String?> = _openRecipeId.asStateFlow()
 
     private var addCounter = 0
+    private var recommendJob: Job? = null
+    private var lastQuery: String? = null
 
     // ── 카메라: 셔터 → 분석 애니메이션 + 실제 Gemini 인식 ──
     fun startAnalysis(image: ByteArray, onComplete: () -> Unit) {
@@ -122,21 +125,28 @@ class FridgeSessionViewModel @Inject constructor(
 
     val selectedCount: Int get() = _ingredients.value.count { it.selected }
 
-    // ── 레시피 추천 ──
-    fun recommendIfNeeded() {
-        if (_recipes.value.loading || _recipes.value.recipes.isNotEmpty()) return
-        recommend()
-    }
-
-    fun recommend() {
+    // ── 레시피 추천 (중복 호출 방지로 API 할당량 절약) ──
+    fun recommend(force: Boolean = false) {
         val selected = _ingredients.value.filter { it.selected }
         if (selected.isEmpty()) return
-        viewModelScope.launch {
+
+        // 선택된 재료 구성의 서명(id+수량). 같으면 같은 결과가 나오므로 재요청 불필요.
+        val signature = selected.joinToString("|") { "${it.id}:${it.qty}" }
+        val state = _recipes.value
+
+        // 동일 재료이고 이미 결과가 있거나 로딩 중이면 재요청 생략
+        if (!force && signature == lastQuery && (state.loading || state.recipes.isNotEmpty())) return
+        // 진행 중이면 연타 무시
+        if (recommendJob?.isActive == true) return
+
+        lastQuery = signature
+        recommendJob = viewModelScope.launch {
             _recipes.update { it.copy(loading = true, error = null) }
             try {
                 val result = recommendRecipes(selected)
                 _recipes.value = RecipesUiState(loading = false, recipes = result)
             } catch (e: Exception) {
+                lastQuery = null  // 실패 시 동일 재료로도 재시도 가능하게
                 _recipes.value = RecipesUiState(
                     loading = false,
                     error = "레시피를 불러오지 못했어요: ${e.message}"
