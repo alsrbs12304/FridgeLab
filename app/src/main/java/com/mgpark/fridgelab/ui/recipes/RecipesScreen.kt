@@ -3,6 +3,8 @@ package com.mgpark.fridgelab.ui.recipes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -195,11 +197,19 @@ private fun RecipeCard(r: Recipe, onClick: () -> Unit) {
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("부족", color = c.ink3, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    r.missing.take(3).forEach { n ->
-                        Box(
-                            Modifier.clip(CircleShape).background(c.missChipBg).padding(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text(n.name, color = c.warn, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Row(
+                        modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        r.missing.forEach { n ->
+                            Box(
+                                Modifier.clip(CircleShape).background(c.missChipBg).padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    n.name, color = c.warn, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1, softWrap = false
+                                )
+                            }
                         }
                     }
                 }
