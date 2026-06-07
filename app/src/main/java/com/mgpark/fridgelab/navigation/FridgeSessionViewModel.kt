@@ -27,11 +27,12 @@ data class AnalysisState(
     val done: Boolean = false
 )
 
-/** 레시피 추천 로딩/결과 상태. */
+/** 레시피 추천 로딩/결과 상태. notice = 로딩 중 보조 안내(예: 자동 재시도). */
 data class RecipesUiState(
     val loading: Boolean = false,
     val recipes: List<Recipe> = emptyList(),
-    val error: String? = null
+    val error: String? = null,
+    val notice: String? = null
 )
 
 /**
@@ -141,18 +142,56 @@ class FridgeSessionViewModel @Inject constructor(
 
         lastQuery = signature
         recommendJob = viewModelScope.launch {
-            _recipes.update { it.copy(loading = true, error = null) }
-            try {
-                val result = recommendRecipes(selected)
-                _recipes.value = RecipesUiState(loading = false, recipes = result)
-            } catch (e: Exception) {
-                lastQuery = null  // 실패 시 동일 재료로도 재시도 가능하게
-                _recipes.value = RecipesUiState(
-                    loading = false,
-                    error = "레시피를 불러오지 못했어요: ${e.message}"
-                )
+            _recipes.update { it.copy(loading = true, error = null, notice = null) }
+            var attempt = 0
+            while (true) {
+                try {
+                    val result = recommendRecipes(selected)
+                    _recipes.value = RecipesUiState(loading = false, recipes = result)
+                    return@launch
+                } catch (e: Exception) {
+                    val waitMs = quotaWaitMillis(e)
+                    if (waitMs != null && attempt < MAX_RETRY) {
+                        // 할당량(rate limit) 오류 → 안내된 시간만큼 기다렸다 자동 재시도
+                        attempt++
+                        val sec = (waitMs + 999) / 1000
+                        _recipes.update {
+                            it.copy(
+                                loading = true, error = null,
+                                notice = "요청이 많아요 · ${sec}초 후 자동 재시도 ($attempt/$MAX_RETRY)"
+                            )
+                        }
+                        delay(waitMs)
+                    } else {
+                        lastQuery = null  // 실패 시 동일 재료로도 재시도 가능하게
+                        _recipes.value = RecipesUiState(loading = false, error = friendlyError(e))
+                        return@launch
+                    }
+                }
             }
         }
+    }
+
+    /** quota/rate-limit 오류면 권장 대기(ms)를 반환, 아니면 null. */
+    private fun quotaWaitMillis(e: Throwable): Long? {
+        val msg = (e.message ?: "") + " " + (e.cause?.message ?: "")
+        val isQuota = listOf("quota", "RESOURCE_EXHAUSTED", "429", "rate limit", "exceeded your current quota")
+            .any { msg.contains(it, ignoreCase = true) }
+        if (!isQuota) return null
+        val sec = Regex("""retry in ([0-9]+(?:\.[0-9]+)?)\s*s""", RegexOption.IGNORE_CASE)
+            .find(msg)?.groupValues?.get(1)?.toDoubleOrNull()
+            ?: Regex("""retryDelay"?\s*[:=]?\s*"?([0-9]+(?:\.[0-9]+)?)s""", RegexOption.IGNORE_CASE)
+                .find(msg)?.groupValues?.get(1)?.toDoubleOrNull()
+            ?: 20.0
+        return (sec * 1000).toLong().coerceIn(1000L, 60_000L) + 500L
+    }
+
+    private fun friendlyError(e: Throwable): String =
+        if (quotaWaitMillis(e) != null) "요청 한도를 초과했어요. 잠시 후 다시 시도해 주세요."
+        else "레시피를 불러오지 못했어요: ${e.message}"
+
+    private companion object {
+        const val MAX_RETRY = 2
     }
 
     // ── 상세 ──

@@ -128,6 +128,9 @@ fun RecipesScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = c.primary)
                     Text("레시피를 찾고 있어요...", color = c.ink2, fontSize = 14.sp, modifier = Modifier.padding(top = 16.dp))
+                    state.notice?.let {
+                        Text(it, color = c.warn, fontSize = 12.5.sp, modifier = Modifier.padding(top = 6.dp))
+                    }
                 }
             }
 
