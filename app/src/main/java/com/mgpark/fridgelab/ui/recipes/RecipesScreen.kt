@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +29,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,6 +63,12 @@ fun RecipesScreen(
 ) {
     val c = FridgeTheme.colors
     var sort by remember { mutableStateOf(Sort.MATCH) }
+    val listState = rememberLazyListState()
+
+    // 정렬 탭을 바꾸면 리스트를 첫 레시피로 스크롤
+    LaunchedEffect(sort) {
+        listState.animateScrollToItem(0)
+    }
 
     val sorted = remember(state.recipes, sort) {
         when (sort) {
@@ -134,7 +142,8 @@ fun RecipesScreen(
             }
 
             else -> LazyColumn(
-                Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                state = listState,
                 contentPadding = PaddingValues(top = 8.dp, bottom = 40.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
