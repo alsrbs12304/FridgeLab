@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -28,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,6 +70,12 @@ fun IngredientScreen(
 ) {
     val c = FridgeTheme.colors
     var adding by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+
+    // "직접 추가"를 누르면 추가 카드(맨 위 항목)가 보이도록 자동 스크롤
+    LaunchedEffect(adding) {
+        if (adding) listState.animateScrollToItem(0)
+    }
 
     val selCount = ingredients.count { it.selected }
     val allSel = ingredients.isNotEmpty() && ingredients.all { it.selected }
@@ -145,6 +153,7 @@ fun IngredientScreen(
 
             // ── scroll body ──
             LazyColumn(
+                state = listState,
                 modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 6.dp, bottom = 130.dp)
             ) {
