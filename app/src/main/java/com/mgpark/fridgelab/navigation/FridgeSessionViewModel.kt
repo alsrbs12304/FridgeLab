@@ -1,5 +1,6 @@
 package com.mgpark.fridgelab.navigation
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mgpark.fridgelab.domain.model.Category
@@ -19,12 +20,13 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** 카메라 셔터 후 AI 분석 진행 상태. */
+/** 카메라 셔터 후 AI 분석 진행 상태. notice = 진행 중 보조 안내(예: 자동 재시도). */
 data class AnalysisState(
     val analyzing: Boolean = false,
     val progress: Float = 0f,
     val foundCount: Int = 0,
-    val done: Boolean = false
+    val done: Boolean = false,
+    val notice: String? = null
 )
 
 /** 레시피 추천 로딩/결과 상태. notice = 로딩 중 보조 안내(예: 자동 재시도). */
@@ -57,6 +59,10 @@ class FridgeSessionViewModel @Inject constructor(
     private val _openRecipeId = MutableStateFlow<String?>(null)
     val openRecipeId: StateFlow<String?> = _openRecipeId.asStateFlow()
 
+    // 인식 실패 사유(0개일 때 재료 화면에 안내). 성공 시 null.
+    private val _recognizeError = MutableStateFlow<String?>(null)
+    val recognizeError: StateFlow<String?> = _recognizeError.asStateFlow()
+
     private var addCounter = 0
     private var recommendJob: Job? = null
     private var lastQuery: String? = null
@@ -64,6 +70,7 @@ class FridgeSessionViewModel @Inject constructor(
     // ── 카메라: 셔터 → 분석 애니메이션 + 실제 Gemini 인식 ──
     fun startAnalysis(image: ByteArray, onComplete: () -> Unit) {
         if (_analysis.value.analyzing) return
+        _recognizeError.value = null
         _analysis.value = AnalysisState(analyzing = true)
         viewModelScope.launch {
             // 진행률 애니메이션을 실제 호출과 함께 진행(완료 전까지 92%까지만)
@@ -75,15 +82,39 @@ class FridgeSessionViewModel @Inject constructor(
                     _analysis.update { it.copy(progress = p, foundCount = (p * 13).toInt()) }
                 }
             }
-            val result = try {
-                recognizeIngredients(image)
-            } catch (e: Exception) {
-                emptyList()
+
+            var attempt = 0
+            var ingredients: List<Ingredient> = emptyList()
+            var error: String? = null
+            while (true) {
+                try {
+                    ingredients = recognizeIngredients(image)
+                    break
+                } catch (e: Exception) {
+                    Log.e(TAG, "재료 인식 실패 (시도 ${attempt + 1})", e)
+                    val waitMs = quotaWaitMillis(e)
+                    if (waitMs != null && attempt < MAX_RETRY) {
+                        attempt++
+                        val sec = (waitMs + 999) / 1000
+                        _analysis.update { it.copy(notice = "요청이 많아요 · ${sec}초 후 자동 재시도 ($attempt/$MAX_RETRY)") }
+                        delay(waitMs)
+                        _analysis.update { it.copy(notice = null) }
+                    } else {
+                        error = if (quotaWaitMillis(e) != null)
+                            "요청 한도를 초과했어요. 잠시 후 다시 촬영해 주세요."
+                        else
+                            "재료를 인식하지 못했어요. 다시 촬영하거나 직접 추가해 주세요."
+                        break
+                    }
+                }
             }
             anim.cancel()
-            _ingredients.value = result
+            _ingredients.value = ingredients
+            // 호출은 성공했지만 인식 결과가 0개인 경우도 안내
+            _recognizeError.value = error
+                ?: if (ingredients.isEmpty()) "사진에서 재료를 찾지 못했어요. 다시 촬영하거나 직접 추가해 주세요." else null
             _analysis.value = AnalysisState(
-                analyzing = true, progress = 1f, foundCount = result.size, done = true
+                analyzing = true, progress = 1f, foundCount = ingredients.size, done = true
             )
             delay(450)
             _analysis.value = AnalysisState()
@@ -192,6 +223,7 @@ class FridgeSessionViewModel @Inject constructor(
 
     private companion object {
         const val MAX_RETRY = 2
+        const val TAG = "FridgeLab"
     }
 
     // ── 상세 ──

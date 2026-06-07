@@ -56,8 +56,10 @@ fun FridgeNavHost(
         composable(FridgeRoute.Ingredients.route) { entry ->
             val session = entry.sharedViewModel<FridgeSessionViewModel>(navController)
             val items by session.ingredients.collectAsStateWithLifecycle()
+            val recogError by session.recognizeError.collectAsStateWithLifecycle()
             IngredientScreen(
                 ingredients = items,
+                errorNote = recogError,
                 onBack = {
                     navController.navigate(FridgeRoute.Camera.route) {
                         popUpTo(FridgeRoute.Camera.route) { inclusive = true }

@@ -59,6 +59,7 @@ import com.mgpark.fridgelab.ui.theme.FridgeTheme
 @Composable
 fun IngredientScreen(
     ingredients: List<Ingredient>,
+    errorNote: String? = null,
     onBack: () -> Unit,
     onToggle: (String) -> Unit,
     onQty: (String, Int) -> Unit,
@@ -110,6 +111,20 @@ fun IngredientScreen(
                     Row(Modifier.padding(top = 6.dp)) {
                         Text("${ingredients.size}개", color = c.primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         Text("를 찾았어요. 확인하고 수정해 주세요.", color = c.ink2, fontSize = 14.sp)
+                    }
+                    if (errorNote != null) {
+                        Row(
+                            Modifier
+                                .padding(top = 11.dp)
+                                .clip(RoundedCornerShape(FridgeRadius.sm))
+                                .background(c.warnBadgeBg)
+                                .padding(horizontal = 11.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(FridgeIcons.camera, null, tint = c.warn, modifier = Modifier.size(14.dp))
+                            Text(errorNote, color = c.warn, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                     if (lowConf > 0) {
                         Row(
