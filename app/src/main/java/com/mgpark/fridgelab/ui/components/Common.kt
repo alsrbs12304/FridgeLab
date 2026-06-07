@@ -94,7 +94,10 @@ fun FreshnessChip(freshness: Freshness, onClick: (() -> Unit)? = null) {
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Box(Modifier.size(5.dp).clip(CircleShape).background(p.fg))
-        Text(freshness.label, color = p.fg, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+        Text(
+            freshness.label, color = p.fg, fontSize = 11.5.sp, fontWeight = FontWeight.Bold,
+            maxLines = 1, softWrap = false
+        )
     }
 }
 
