@@ -10,16 +10,6 @@
 
 ---
 
-## 📱 화면 (Screenshots)
-
-> `docs/screenshots/` 에 이미지를 넣으면 아래에 표시됩니다.
-
-| 촬영 | AI 분석 | 인식된 재료 | 추천 레시피 | 레시피 상세 |
-|:---:|:---:|:---:|:---:|:---:|
-| ![camera](docs/screenshots/01-camera.png) | ![analyzing](docs/screenshots/02-analyzing.png) | ![ingredients](docs/screenshots/03-ingredients.png) | ![recipes](docs/screenshots/04-recipes.png) | ![detail](docs/screenshots/05-detail.png) |
-
----
-
 ## ✨ 핵심 기능
 
 - 📷 **냉장고 촬영** — CameraX 프리뷰/촬영, 플래시·전후면 전환·갤러리 불러오기, 촬영 가이드 오버레이
@@ -89,23 +79,3 @@ com.mgpark.fridgelab
 3. **카메라 UX** — 촬영 후 라이브 프리뷰 흔들림을 막기 위해 **촬영 프레임을 정지 이미지로 고정**(회전 보정)해 분석 애니메이션을 정지 화면 위에서 실행.
 4. **Compose 디테일** — `Canvas`+`Path`(2차 베지어)로 둥근 ㄱ자 가이드, 무한 회전 애니메이션, 커스텀 진행 바, `FlowRow`/가로 스크롤로 텍스트 오버플로우 해결, `LazyListState` 자동 스크롤.
 5. **디자인 핸드오프 정밀 재현** — High-fidelity 디자인의 `oklch` 색을 HEX 토큰으로 변환, `CompositionLocal`(FridgeColors)로 Material3에 없는 커스텀 디자인 토큰까지 테마화.
-
----
-
-## ▶️ 빌드 & 실행
-
-```bash
-git clone https://github.com/alsrbs12304/FridgeLab.git
-cd FridgeLab
-./gradlew installDebug   # 실기기/에뮬레이터에 설치
-```
-
-> ⚠️ Firebase 연동을 위해 `app/google-services.json`(gitignore 대상)이 필요합니다.
-> Firebase 콘솔에서 프로젝트의 `google-services.json`을 받아 `app/`에 두면 됩니다.
-
----
-
-## 📂 개발 방식
-
-- **feature 브랜치 + PR 단위 개발** (13개 PR), **Conventional Commits**
-- 단계적 구현: `의존성 구성 → 네비게이션 → 카메라 → AI 재료 인식 → AI 레시피 추천 → 브랜드 테마 → 디자인 핸드오프 리디자인 → UX 개선`
